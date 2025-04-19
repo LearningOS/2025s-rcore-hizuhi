@@ -30,14 +30,14 @@ static USER_STACK: UserStack = UserStack {
 
 impl KernelStack {
     fn get_sp(&self) -> usize {
-        self.data.as_ptr() as usize + KERNEL_STACK_SIZE
+        self.data.as_ptr() as usize + KERNEL_STACK_SIZE // 因为栈底在高位
     }
     pub fn push_context(&self, cx: TrapContext) -> &'static mut TrapContext {
         let cx_ptr = (self.get_sp() - core::mem::size_of::<TrapContext>()) as *mut TrapContext;
         unsafe {
             *cx_ptr = cx;
         }
-        unsafe { cx_ptr.as_mut().unwrap() }
+        unsafe { cx_ptr.as_mut().unwrap() } //返回的是一个静态生命周期的引用
     }
 }
 
@@ -78,8 +78,8 @@ impl AppManager {
         let app_src = core::slice::from_raw_parts(
             self.app_start[app_id] as *const u8,
             self.app_start[app_id + 1] - self.app_start[app_id],
-        );
-        let app_dst = core::slice::from_raw_parts_mut(APP_BASE_ADDRESS as *mut u8, app_src.len());
+        ); // 程序源代码的切片，这一块数据在内核的内存上，所以是实际上是伪批处理
+        let app_dst = core::slice::from_raw_parts_mut(APP_BASE_ADDRESS as *mut u8, app_src.len()); //程序运行内存的切片
         app_dst.copy_from_slice(app_src);
         // Memory fence about fetching the instruction memory
         // It is guaranteed that a subsequent instruction fetch must
@@ -138,7 +138,7 @@ pub fn run_next_app() -> ! {
         app_manager.load_app(current_app);
     }
     app_manager.move_to_next_app();
-    drop(app_manager);
+    drop(app_manager); // 释放对资源的引用
     // before this we have to drop local variables related to resources manually
     // and release the resources
     extern "C" {
@@ -148,7 +148,7 @@ pub fn run_next_app() -> ! {
         __restore(KERNEL_STACK.push_context(TrapContext::app_init_context(
             APP_BASE_ADDRESS,
             USER_STACK.get_sp(),
-        )) as *const _ as usize);
+        )) as *const _ as usize);   //先创建一个默认的TrapContext，当其恢复后进入到用户栈的栈底，该结构体随后会被放到KERNEL_STACK中，并返回一个对其的静态生命周期的引用，这个引用在汇编程序中表现为一个地址，经过一系列处理开始运行程序
     }
     panic!("Unreachable in batch::run_current_app!");
 }

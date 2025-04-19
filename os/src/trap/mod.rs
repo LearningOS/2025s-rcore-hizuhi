@@ -32,17 +32,18 @@ pub fn init() {
     }
     unsafe {
         stvec::write(__alltraps as usize, TrapMode::Direct);
-    }
+    } // 将___alltraps地址设置为异常处理程序的入口
 }
 
 #[no_mangle]
 /// handle an interrupt, exception, or system call from user space
+/// cx是一个trap.S中传入的地址，代表对TrapContext的引用，TrapContext结构体大小与预先压入内核栈中的这一块内存大小相同
 pub fn trap_handler(cx: &mut TrapContext) -> &mut TrapContext {
     let scause = scause::read(); // get trap cause  这两个值是硬件自动设置的，所以前面不用处理，cx里是trap的上下文
     let stval = stval::read(); // get extra value
     match scause.cause() {
         Trap::Exception(Exception::UserEnvCall) => {
-            cx.sepc += 4;   // 如果是程序主动发起的合法中断，就将sepc+4，跳过中断指令
+            cx.sepc += 4;   // 如果是程序主动发起的合法中断，就将sepc+4，跳过中断指令(一个指令4字节)
             cx.x[10] = syscall(cx.x[17], [cx.x[10], cx.x[11], cx.x[12]]) as usize;
         }
         Trap::Exception(Exception::StoreFault) | Trap::Exception(Exception::StorePageFault) => {
