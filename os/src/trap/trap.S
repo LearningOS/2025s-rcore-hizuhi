@@ -10,7 +10,7 @@
     .globl __restore
     .align 2
 __alltraps:
-    csrrw sp, sscratch, sp
+    csrrw sp, sscratch, sp # 读取sscratch，再把sp赋值sscratch，最后再把sscratch原值赋给sp,相当于交换寄存器值，目的是保存用户栈sp的原本位置
     # now sp->kernel stack, sscratch->user stack
     # allocate a TrapContext on kernel stack
     addi sp, sp, -34*8
@@ -26,15 +26,15 @@ __alltraps:
         .set n, n+1
     .endr
     # we can use t0/t1/t2 freely, because they were saved on kernel stack
-    csrr t0, sstatus
-    csrr t1, sepc
+    csrr t0, sstatus    # 全局中断使能
+    csrr t1, sepc   # 指向发生异常的指令
     sd t0, 32*8(sp)
     sd t1, 33*8(sp)
     # read user stack from sscratch and save it on the kernel stack
     csrr t2, sscratch
-    sd t2, 2*8(sp)
+    sd t2, 2*8(sp)  # 保存用户态sp，实际上是未做任何处理前的x2
     # set input argument of trap_handler(cx: &mut TrapContext)
-    mv a0, sp
+    mv a0, sp   # 将sp(内核栈)赋值给a0，作为trap_handler的参数
     call trap_handler
 
 __restore:
