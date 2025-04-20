@@ -21,14 +21,29 @@ const SYSCALL_GET_TIME: usize = 169;
 /// trace syscall
 const SYSCALL_TRACE: usize = 410;
 
+/// 系统调用类型枚举
+pub const SYSCALL_IDS: &[usize] = &[
+    SYSCALL_WRITE,
+    SYSCALL_EXIT,
+    SYSCALL_YIELD,
+    SYSCALL_GET_TIME,
+    SYSCALL_TRACE,
+];
+
 mod fs;
 mod process;
 
 use fs::*;
 use process::*;
+use crate::task::add_task_call_times;
 
 /// handle syscall exception with `syscall_id` and other arguments
 pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
+    // 增加调用次数
+    if add_task_call_times(syscall_id) == -1 {
+        panic!("增加调用次数：未找到对应到系统调用");
+    }
+    
     match syscall_id {
         SYSCALL_WRITE => sys_write(args[0], args[1] as *const u8, args[2]),
         SYSCALL_EXIT => sys_exit(args[0] as i32),

@@ -14,12 +14,13 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
-use crate::config::MAX_APP_NUM;
-use crate::loader::{get_num_app, init_app_cx};
+use crate::config::{APP_SIZE_LIMIT, MAX_APP_NUM, MAX_SYSCALL_NUM};
+use crate::loader::{get_num_app, init_app_cx, get_base_i};
 use crate::sync::UPSafeCell;
 use lazy_static::*;
 use switch::__switch;
-pub use task::{TaskControlBlock, TaskStatus};
+pub use task::{TaskControlBlock, TaskStatus, SyscallInfo};
+use crate::syscall::SYSCALL_IDS;
 
 pub use context::TaskContext;
 
@@ -54,10 +55,14 @@ lazy_static! {
         let mut tasks = [TaskControlBlock {
             task_cx: TaskContext::zero_init(),
             task_status: TaskStatus::UnInit,
+            task_calls: [SyscallInfo::zero_init(); MAX_SYSCALL_NUM],
         }; MAX_APP_NUM];
         for (i, task) in tasks.iter_mut().enumerate() {
-            task.task_cx = TaskContext::goto_restore(init_app_cx(i));
+            task.task_cx = TaskContext::goto_restore(init_app_cx(i)); // 初始任务上下文中返回地址是__restore， 栈指针是内核栈的栈顶。内核栈中的内容是指向程序入口的指令地址
             task.task_status = TaskStatus::Ready;
+            for (index, &syscall_id) in SYSCALL_IDS.iter().enumerate() {
+                task.task_calls[index] = SyscallInfo::init_with_id(syscall_id);
+            }
         }
         TaskManager {
             num_app,
@@ -123,7 +128,7 @@ impl TaskManager {
             let current = inner.current_task;
             inner.tasks[next].task_status = TaskStatus::Running;
             inner.current_task = next;
-            let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
+            let current_task_cx_ptr: *mut TaskContext = &mut inner.tasks[current].task_cx as *mut TaskContext;
             let next_task_cx_ptr = &inner.tasks[next].task_cx as *const TaskContext;
             drop(inner);
             // before this, we should drop local variables that must be dropped manually
@@ -135,6 +140,87 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
+
+    /// 读取地址上的数据
+    pub fn read_task_data(&self, addr: usize) -> isize {
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        let current_task_base_addr = get_base_i(current);
+        drop(inner);
+        if addr > APP_SIZE_LIMIT {
+            return -1;
+        }
+        unsafe {
+            *((current_task_base_addr + addr) as *const u8) as isize
+        }
+    }
+
+    /// 写入地址上的数据
+    pub fn write_task_data(&self, addr: usize, data: usize) -> isize {
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        let current_task_base_addr = get_base_i(current);
+        drop(inner);
+        if data > APP_SIZE_LIMIT {
+            return -1;
+        }
+        unsafe {
+            *((current_task_base_addr + addr) as *mut u8) = data as u8;
+        }
+        0
+    }
+
+    /// get call times of current task
+    pub fn get_task_calls(&self, id: usize) -> isize {
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        let current_task_calls: [SyscallInfo; 5] = inner.tasks[current].task_calls;
+        drop(inner);
+        for task_calls in current_task_calls{
+            if task_calls.get_id() == id {
+                return task_calls.get_times() as isize;
+            }
+        }
+        -1
+    }
+
+    /// 增加当前任务的系统调用计数
+    pub fn add_task_call_times(&self, syscall_id: usize) -> isize {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        let mut ret = -1;
+        // 查找对应的系统调用并增加计数
+        for task_call in &mut inner.tasks[current].task_calls {
+            if task_call.get_id() == syscall_id {
+                task_call.add_time();
+                ret = 0;
+                break;
+            }
+        }
+        drop(inner);
+        ret
+    }
+
+}
+
+/// 读取地址上的数据
+pub fn read_task_data(addr: usize) -> isize {
+    TASK_MANAGER.read_task_data(addr)
+}
+
+/// 写入地址上的数据
+pub fn write_task_data(addr: usize, data: usize) -> isize {
+    TASK_MANAGER.write_task_data(addr, data)
+}
+
+/// 获取当前任务的系统调用计数
+pub fn get_task_calls(id: usize) -> isize {
+    TASK_MANAGER.get_task_calls(id)
+}
+
+/// 增加当前任务的系统调用计数
+pub fn add_task_call_times(syscall_id: usize) -> isize {
+    TASK_MANAGER.add_task_call_times(syscall_id)
 }
 
 /// Run the first task in task list.

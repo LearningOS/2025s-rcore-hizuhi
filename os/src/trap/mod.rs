@@ -39,7 +39,7 @@ pub fn init() {
 /// enable timer interrupt in supervisor mode
 pub fn enable_timer_interrupt() {
     unsafe {
-        sie::set_stimer();
+        sie::set_stimer(); 
     }
 }
 
