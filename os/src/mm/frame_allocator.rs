@@ -62,12 +62,12 @@ impl FrameAllocator for StackFrameAllocator {
         Self {
             current: 0,
             end: 0,
-            recycled: Vec::new(),
+            recycled: Vec::new(), // 回收栈
         }
     }
     fn alloc(&mut self) -> Option<PhysPageNum> {
         if let Some(ppn) = self.recycled.pop() {
-            Some(ppn.into())
+            Some(ppn.into()) // 优先使用回收的物理页
         } else if self.current == self.end {
             None
         } else {
@@ -77,7 +77,7 @@ impl FrameAllocator for StackFrameAllocator {
     }
     fn dealloc(&mut self, ppn: PhysPageNum) {
         let ppn = ppn.0;
-        // validity check
+        // validity check 是否超出范围，是否已被回收
         if ppn >= self.current || self.recycled.iter().any(|&v| v == ppn) {
             panic!("Frame ppn={:#x} has not been allocated!", ppn);
         }
@@ -93,6 +93,8 @@ lazy_static! {
     pub static ref FRAME_ALLOCATOR: UPSafeCell<FrameAllocatorImpl> =
         unsafe { UPSafeCell::new(FrameAllocatorImpl::new()) };
 }
+// 功能：分配物理页帧，返回的FrameTracker是内存安全的，也可以手动执行帧回收
+
 /// initiate the frame allocator using `ekernel` and `MEMORY_END`
 pub fn init_frame_allocator() {
     extern "C" {
@@ -109,7 +111,7 @@ pub fn frame_alloc() -> Option<FrameTracker> {
     FRAME_ALLOCATOR
         .exclusive_access()
         .alloc()
-        .map(FrameTracker::new)
+        .map(FrameTracker::new) // 映射成FrameTracker，通过Drop特征辅助控制回收，符合RAII思想
 }
 
 /// Deallocate a physical page frame with a given ppn

@@ -149,11 +149,11 @@ impl MemorySet {
         let mut memory_set = Self::new_bare();
         // map trampoline
         memory_set.map_trampoline();
-        // map program headers of elf, with U flag
+        // map program headers of elf, with U flag 用户程序数据 .text .data等
         let elf = xmas_elf::ElfFile::new(elf_data).unwrap();
         let elf_header = elf.header;
         let magic = elf_header.pt1.magic;
-        assert_eq!(magic, [0x7f, 0x45, 0x4c, 0x46], "invalid elf!");
+        assert_eq!(magic, [0x7f, 0x45, 0x4c, 0x46], "invalid elf!"); // 验证是否是合法elf文件
         let ph_count = elf_header.pt2.ph_count();
         let mut max_end_vpn = VirtPageNum(0);
         for i in 0..ph_count {
@@ -195,7 +195,7 @@ impl MemorySet {
             ),
             None,
         );
-        // used in sbrk
+        // used in sbrk 堆的起始点
         memory_set.push(
             MapArea::new(
                 user_stack_top.into(),
@@ -342,12 +342,12 @@ impl MapArea {
         let mut current_vpn = self.vpn_range.get_start();
         let len = data.len();
         loop {
-            let src = &data[start..len.min(start + PAGE_SIZE)];
+            let src = &data[start..len.min(start + PAGE_SIZE)]; //最大是PAGE_SIZE，一次复制一页
             let dst = &mut page_table
                 .translate(current_vpn)
                 .unwrap()
                 .ppn()
-                .get_bytes_array()[..src.len()];
+                .get_bytes_array()[..src.len()]; // 手动查表
             dst.copy_from_slice(src);
             start += PAGE_SIZE;
             if start >= len {

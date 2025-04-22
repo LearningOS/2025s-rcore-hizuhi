@@ -4,7 +4,7 @@ use buddy_system_allocator::LockedHeap;
 
 #[global_allocator]
 /// heap allocator instance
-static HEAP_ALLOCATOR: LockedHeap = LockedHeap::empty();
+static HEAP_ALLOCATOR: LockedHeap = LockedHeap::empty();    // 是一个存储了Heap的互斥锁，此外还实现了一些方法
 
 #[alloc_error_handler]
 /// panic when heap allocation error occurs
@@ -12,13 +12,13 @@ pub fn handle_alloc_error(layout: core::alloc::Layout) -> ! {
     panic!("Heap allocation error, layout = {:?}", layout);
 }
 /// heap space ([u8; KERNEL_HEAP_SIZE])
-static mut HEAP_SPACE: [u8; KERNEL_HEAP_SIZE] = [0; KERNEL_HEAP_SIZE];
+static mut HEAP_SPACE: [u8; KERNEL_HEAP_SIZE] = [0; KERNEL_HEAP_SIZE];  //固定大小的数组
 /// initiate heap allocator
 pub fn init_heap() {
     unsafe {
         HEAP_ALLOCATOR
             .lock()
-            .init(HEAP_SPACE.as_ptr() as usize, KERNEL_HEAP_SIZE);
+            .init(HEAP_SPACE.as_ptr() as usize, KERNEL_HEAP_SIZE);  // 初始化堆, 堆起始位是低地址
     }
 }
 

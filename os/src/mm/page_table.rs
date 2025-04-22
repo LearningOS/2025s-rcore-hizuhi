@@ -75,7 +75,7 @@ impl PageTableEntry {
 /// page table structure
 pub struct PageTable {
     root_ppn: PhysPageNum,
-    frames: Vec<FrameTracker>,
+    frames: Vec<FrameTracker>, // 当页表被回收时，它的子页表也会被回收
 }
 
 /// Assume that it won't oom when creating/mapping.
@@ -101,7 +101,7 @@ impl PageTable {
         let mut ppn = self.root_ppn;
         let mut result: Option<&mut PageTableEntry> = None;
         for (i, idx) in idxs.iter().enumerate() {
-            let pte = &mut ppn.get_pte_array()[*idx];
+            let pte = &mut ppn.get_pte_array()[*idx]; // pte在逻辑上是连续的，但物理上不连续，只稀疏存储被用到的页表项
             if i == 2 {
                 result = Some(pte);
                 break;

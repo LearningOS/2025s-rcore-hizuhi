@@ -75,7 +75,7 @@ impl TaskControlBlock {
         );
         task_control_block
     }
-    /// change the location of the program break. return None if failed.
+    /// change the location of the program break. return None if failed. 控制堆空间的大小
     pub fn change_program_brk(&mut self, size: i32) -> Option<usize> {
         let old_break = self.program_brk;
         let new_brk = self.program_brk as isize + size as isize;

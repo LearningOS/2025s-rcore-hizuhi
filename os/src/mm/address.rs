@@ -50,7 +50,7 @@ impl Debug for PhysPageNum {
 
 impl From<usize> for PhysAddr {
     fn from(v: usize) -> Self {
-        Self(v & ((1 << PA_WIDTH_SV39) - 1))
+        Self(v & ((1 << PA_WIDTH_SV39) - 1)) // 掩码
     }
 }
 impl From<usize> for PhysPageNum {
@@ -81,7 +81,7 @@ impl From<PhysPageNum> for usize {
 impl From<VirtAddr> for usize {
     fn from(v: VirtAddr) -> Self {
         if v.0 >= (1 << (VA_WIDTH_SV39 - 1)) {
-            v.0 | (!((1 << VA_WIDTH_SV39) - 1))
+            v.0 | (!((1 << VA_WIDTH_SV39) - 1))     // 这没看懂，为什么要将高位全置1
         } else {
             v.0
         }
@@ -158,7 +158,7 @@ impl From<PhysPageNum> for PhysAddr {
 impl VirtPageNum {
     /// Get the indexes of the page table entry
     pub fn indexes(&self) -> [usize; 3] {
-        let mut vpn = self.0;
+        let mut vpn: usize = self.0;
         let mut idx = [0usize; 3];
         for i in (0..3).rev() {
             idx[i] = vpn & 511;

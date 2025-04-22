@@ -57,7 +57,7 @@ pub fn enable_timer_interrupt() {
 #[no_mangle]
 pub fn trap_handler() -> ! {
     set_kernel_trap_entry();
-    let cx = current_trap_cx();
+    let cx: &mut TrapContext = current_trap_cx(); // 在内核态获取指向用户空间的TrapContext的指针
     let scause = scause::read(); // get trap cause
     let stval = stval::read(); // get extra value
     // trace!("into {:?}", scause.cause());
@@ -101,14 +101,14 @@ pub fn trap_handler() -> ! {
 /// set the reg a0 = trap_cx_ptr, reg a1 = phy addr of usr page table,
 /// finally, jump to new addr of __restore asm function
 pub fn trap_return() -> ! {
-    set_user_trap_entry();
+    set_user_trap_entry(); // 设置虚拟空间中的TRAMPOLINE位置为中断入口
     let trap_cx_ptr = TRAP_CONTEXT_BASE;
-    let user_satp = current_user_token();
+    let user_satp = current_user_token(); // 获取当前用户程序内存的satp(实际上是根页表的物理地址处理来的)
     extern "C" {
         fn __alltraps();
         fn __restore();
     }
-    let restore_va = __restore as usize - __alltraps as usize + TRAMPOLINE;
+    let restore_va = __restore as usize - __alltraps as usize + TRAMPOLINE; // 计算__restore的虚拟地址:__restore相对__alltraps的偏移量+TRAMPOLINE
     // trace!("[kernel] trap_return: ..before return");
     unsafe {
         asm!(
