@@ -158,7 +158,7 @@ impl From<PhysPageNum> for PhysAddr {
 impl VirtPageNum {
     /// Get the indexes of the page table entry
     pub fn indexes(&self) -> [usize; 3] {
-        let mut vpn: usize = self.0;
+        let mut vpn = self.0;
         let mut idx = [0usize; 3];
         for i in (0..3).rev() {
             idx[i] = vpn & 511;

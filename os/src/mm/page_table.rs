@@ -179,3 +179,57 @@ pub fn translated_byte_buffer(token: usize, ptr: *const u8, len: usize) -> Vec<&
     }
     v
 }
+
+/// 根据token查看对应的pte是否对用户可读
+pub fn is_va_readable(token: usize, ptr: *const u8, len: usize) -> bool {
+    let page_table = PageTable::from_token(token);
+    let mut start = ptr as usize;
+    let end = start + len;
+    while start < end {
+        let start_va = VirtAddr::from(start);
+        let mut vpn = start_va.floor();
+        
+        match page_table.translate(vpn) {
+            Some(pte) => {
+                if !pte.readable() {
+                    return false;
+                }
+            }
+            None => {
+                return false;
+            }
+        }
+        vpn.step();
+        let mut end_va: VirtAddr = vpn.into();
+        end_va = end_va.min(VirtAddr::from(end));
+        start = end_va.into();
+    }
+    true
+}
+
+/// 根据token查看对应的pte是否对用户可写
+pub fn is_va_writable(token: usize, ptr: *const u8, len: usize) -> bool {
+    let page_table = PageTable::from_token(token);
+    let mut start = ptr as usize;
+    let end = start + len;
+    while start < end {
+        let start_va = VirtAddr::from(start);
+        let mut vpn = start_va.floor();
+        
+        match page_table.translate(vpn) {
+            Some(pte) => {
+                if !pte.writable() {
+                    return false;
+                }
+            }
+            None => {
+                return false;
+            }
+        }
+        vpn.step();
+        let mut end_va: VirtAddr = vpn.into();
+        end_va = end_va.min(VirtAddr::from(end));
+        start = end_va.into();
+    }
+    true
+}
