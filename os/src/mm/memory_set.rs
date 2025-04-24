@@ -63,6 +63,46 @@ impl MemorySet {
             None,
         );
     }
+    
+    /// 检查内存是不是已经被分配了
+    pub fn check_conflicts(
+        &mut self,
+        start_va: VirtAddr,
+        end_va: VirtAddr,
+    ) -> isize {
+        let start_vpn = start_va.floor();
+        let end_vpn = end_va.ceil();
+        for vpn in start_vpn.0 .. end_vpn.0 {
+            match self.translate(vpn.into()) {
+                Some(_) => {
+                    return -1;
+                }
+                None => {}
+            }
+        }
+        0
+    }
+    
+    /// 给定范围，释放内存
+    pub fn remove_area(&mut self, start_va: VirtAddr, end_va: VirtAddr) -> isize {
+        let start_vpn = start_va.floor();
+        let end_vpn = end_va.ceil();
+        for vpn in start_vpn.0 .. end_vpn.0 {
+            match self.translate(vpn.into()) {
+                Some(pte) => {
+                    if pte.is_valid() {
+                        self.page_table.unmap(vpn.into());
+                    }
+                    else {
+                        return -1;
+                    }
+                }
+                None => { return -1; }
+            }
+        }
+        0
+    }
+
     fn push(&mut self, mut map_area: MapArea, data: Option<&[u8]>) {
         map_area.map(&mut self.page_table);
         if let Some(data) = data {

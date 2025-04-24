@@ -70,6 +70,10 @@ impl PageTableEntry {
     pub fn executable(&self) -> bool {
         (self.flags() & PTEFlags::X) != PTEFlags::empty()
     }
+    /// 是否对用户可见
+    pub fn user_accessible(&self) -> bool {
+        (self.flags() & PTEFlags::U) != PTEFlags::empty()
+    }
 }
 
 /// page table structure
@@ -143,7 +147,7 @@ impl PageTable {
     /// remove the map between virtual page number and physical page number
     #[allow(unused)]
     pub fn unmap(&mut self, vpn: VirtPageNum) {
-        let pte = self.find_pte(vpn).unwrap();
+        let pte: &mut PageTableEntry = self.find_pte(vpn).unwrap();
         assert!(pte.is_valid(), "vpn {:?} is invalid before unmapping", vpn);
         *pte = PageTableEntry::empty();
     }
@@ -166,7 +170,11 @@ pub fn translated_byte_buffer(token: usize, ptr: *const u8, len: usize) -> Vec<&
     while start < end {
         let start_va = VirtAddr::from(start);
         let mut vpn = start_va.floor();
-        let ppn = page_table.translate(vpn).unwrap().ppn();
+        // let ppn = page_table.translate(vpn).unwrap().ppn(); // 先转换成虚拟页码，目的是找到物理页码
+        let ppn = match page_table.translate(vpn) {
+            Some(pte) => pte.ppn(),
+            None => { return Vec::new();}
+        };
         vpn.step();
         let mut end_va: VirtAddr = vpn.into();
         end_va = end_va.min(VirtAddr::from(end));
@@ -182,54 +190,64 @@ pub fn translated_byte_buffer(token: usize, ptr: *const u8, len: usize) -> Vec<&
 
 /// 根据token查看对应的pte是否对用户可读
 pub fn is_va_readable(token: usize, ptr: *const u8, len: usize) -> bool {
-    let page_table = PageTable::from_token(token);
-    let mut start = ptr as usize;
+    if ptr.is_null() || len == 0 {
+        return false;
+    }
+    let start = ptr as usize;
     let end = start + len;
-    while start < end {
-        let start_va = VirtAddr::from(start);
-        let mut vpn = start_va.floor();
-        
+    let start_va = VirtAddr::from(start);
+    let end_va = VirtAddr::from(end);
+    if !start_va.is_legal() || !end_va.is_legal() {
+        return false;
+    }
+    let start_vpn = start_va.floor();
+    let end_vpn = end_va.ceil();
+    let page_table = PageTable::from_token(token);
+
+    for vpn_idx in start_vpn.0..end_vpn.0 {
+        let vpn = VirtPageNum::from(vpn_idx);
         match page_table.translate(vpn) {
             Some(pte) => {
-                if !pte.readable() {
+                if !pte.is_valid() || !pte.readable() || !pte.user_accessible() {
                     return false;
                 }
-            }
+            },
             None => {
                 return false;
             }
         }
-        vpn.step();
-        let mut end_va: VirtAddr = vpn.into();
-        end_va = end_va.min(VirtAddr::from(end));
-        start = end_va.into();
     }
+
     true
 }
 
 /// 根据token查看对应的pte是否对用户可写
 pub fn is_va_writable(token: usize, ptr: *const u8, len: usize) -> bool {
+    if ptr.is_null() || len == 0 {
+        return false;
+    }
     let page_table = PageTable::from_token(token);
-    let mut start = ptr as usize;
+    let start = ptr as usize;
     let end = start + len;
-    while start < end {
-        let start_va = VirtAddr::from(start);
-        let mut vpn = start_va.floor();
-        
+    let start_va = VirtAddr::from(start);
+    let end_va = VirtAddr::from(end);
+    if !start_va.is_legal() || !end_va.is_legal() {
+        return false;
+    }
+    let start_vpn = start_va.floor();
+    let end_vpn = end_va.ceil();
+    for vpn_idx in start_vpn.0..end_vpn.0 {
+        let vpn = VirtPageNum::from(vpn_idx);
         match page_table.translate(vpn) {
             Some(pte) => {
-                if !pte.writable() {
+                if !pte.is_valid() || !pte.writable() || !pte.user_accessible() {
                     return false;
                 }
-            }
+            },
             None => {
                 return false;
             }
         }
-        vpn.step();
-        let mut end_va: VirtAddr = vpn.into();
-        end_va = end_va.min(VirtAddr::from(end));
-        start = end_va.into();
     }
     true
 }

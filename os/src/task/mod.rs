@@ -21,6 +21,8 @@ use alloc::vec::Vec;
 use lazy_static::*;
 use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
+use crate::mm::{VirtAddr, MapPermission};
+use crate::config::PAGE_SIZE;
 
 pub use context::TaskContext;
 
@@ -153,7 +155,67 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
+
+    /// get call times of current task
+    pub fn get_task_calls(&self, id: usize) -> isize {
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        let current_task_calls = inner.tasks[current].task_calls.get(&id);
+        match current_task_calls {
+            Some(times) => *times as isize,
+            None => -1,
+        }
+    }
+
+    /// 增加当前任务的系统调用计数
+    pub fn add_task_call_times(&self, syscall_id: usize) {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        // 查找对应的系统调用并增加计数
+        inner.tasks[current].task_calls.entry(syscall_id).and_modify(|times| *times += 1).or_insert(1);
+    }
+
+    /// 添加一块新内存
+    pub fn task_mmap(&self, start: usize, len: usize, port: usize) -> isize{
+        if start % PAGE_SIZE != 0 || port & !0x07 != 0 || port & 0x07 == 0{
+            return -1;
+        }
+        let end = start + len;
+        let start_va: VirtAddr = VirtAddr::from(start);
+        let end_va = VirtAddr::from(end);
+        if !start_va.is_legal() || !end_va.is_legal() {
+            return -1;
+        }
+        let mut inner = self.inner.exclusive_access();
+
+        let mut permission = MapPermission::U;
+        if (port & 0x1) != 0 { permission |= MapPermission::R; }
+        if (port & 0x2) != 0 { permission |= MapPermission::W; }
+        if (port & 0x4) != 0 { permission |= MapPermission::X; }
+
+        let current = inner.current_task;
+        if inner.tasks[current].memory_set.check_conflicts(start_va, end_va) == -1 {
+            return -1;
+        }
+        inner.tasks[current].memory_set.insert_framed_area(start_va, VirtAddr::from(end - 1), permission);
+        0
+    }
+
+    /// 释放内存
+    pub fn task_munmap(&self, start: usize, len: usize) -> isize {
+        let end = start + len;
+        let start_va = VirtAddr::from(start);
+        let end_va = VirtAddr::from(end);
+        if !start_va.is_legal() || !end_va.is_legal() {
+            return -1;
+        }
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].memory_set.remove_area(start_va, end_va)
+    }
 }
+
+
 
 /// Run the first task in task list.
 pub fn run_first_task() {
@@ -201,4 +263,24 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
 /// Change the current 'Running' task's program break
 pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
+}
+
+/// get call times of current task
+pub fn get_task_calls(id: usize) -> isize {
+    TASK_MANAGER.get_task_calls(id)
+}
+
+/// add call times of current task
+pub fn add_task_call_times(syscall_id: usize) {
+    TASK_MANAGER.add_task_call_times(syscall_id);
+}
+
+/// 申请内存
+pub fn task_mmap(start: usize, len: usize, port: usize) -> isize {
+    TASK_MANAGER.task_mmap(start, len, port)
+}
+
+/// 释放内存
+pub fn task_munmap(start: usize, len: usize) -> isize {
+    TASK_MANAGER.task_munmap(start, len)
 }

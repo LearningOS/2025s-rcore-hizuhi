@@ -96,12 +96,12 @@ impl From<VirtPageNum> for usize {
 impl VirtAddr {
     /// Get the (floor) virtual page number
     pub fn floor(&self) -> VirtPageNum {
-        VirtPageNum(self.0 / PAGE_SIZE)
+        VirtPageNum(self.0 / PAGE_SIZE) // 可以理解为右移三字节
     }
 
     /// Get the (ceil) virtual page number
     pub fn ceil(&self) -> VirtPageNum {
-        VirtPageNum((self.0 - 1 + PAGE_SIZE) / PAGE_SIZE)
+        VirtPageNum((self.0 - 1 + PAGE_SIZE) / PAGE_SIZE) 
     }
 
     /// Get the page offset of virtual address
@@ -112,6 +112,12 @@ impl VirtAddr {
     /// Check if the virtual address is aligned by page size
     pub fn aligned(&self) -> bool {
         self.page_offset() == 0
+    }
+    /// 判断63:39位是否全部和38位相同
+    pub fn is_legal(&self) -> bool {
+        let sign_bit = (self.0 >> (VA_WIDTH_SV39 - 2)) & 1;
+        let high_bits = self.0 >> (VA_WIDTH_SV39 - 1);
+        high_bits == if sign_bit == 0 {0} else { (1 << (64 - VA_WIDTH_SV39)) - 1}
     }
 }
 impl From<VirtAddr> for VirtPageNum {
@@ -166,6 +172,7 @@ impl VirtPageNum {
         }
         idx
     }
+
 }
 
 impl PhysAddr {
