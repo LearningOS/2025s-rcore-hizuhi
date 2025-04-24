@@ -160,11 +160,9 @@ impl TaskManager {
     pub fn get_task_calls(&self, id: usize) -> isize {
         let inner = self.inner.exclusive_access();
         let current = inner.current_task;
-        let current_task_calls = inner.tasks[current].task_calls.get(&id);
-        match current_task_calls {
-            Some(times) => *times as isize,
-            None => -1,
-        }
+        if id >= 500 { return -1;}
+        let current_task_calls = inner.tasks[current].task_calls.get(&id).unwrap_or(&0);
+        *current_task_calls as isize
     }
 
     /// 增加当前任务的系统调用计数
@@ -180,10 +178,11 @@ impl TaskManager {
         if start % PAGE_SIZE != 0 || port & !0x07 != 0 || port & 0x07 == 0{
             return -1;
         }
+        let len = (len - 1 + PAGE_SIZE) / PAGE_SIZE * PAGE_SIZE; // 按页对齐（向上取整），如果len小于一个PAGE_SIZE，那么end比start刚好大一页，再经过floor和ceil，分别为start和start+1，其他情况也类似
         let end = start + len;
         let start_va: VirtAddr = VirtAddr::from(start);
-        let end_va = VirtAddr::from(end);
-        if !start_va.is_legal() || !end_va.is_legal() {
+        let end_va: VirtAddr = VirtAddr::from(end);
+        if !start_va.is_legal() || !end_va.is_legal() { // 判断是否符号SV39的要求
             return -1;
         }
         let mut inner = self.inner.exclusive_access();
@@ -194,11 +193,7 @@ impl TaskManager {
         if (port & 0x4) != 0 { permission |= MapPermission::X; }
 
         let current = inner.current_task;
-        if inner.tasks[current].memory_set.check_conflicts(start_va, end_va) == -1 {
-            return -1;
-        }
-        inner.tasks[current].memory_set.insert_framed_area(start_va, VirtAddr::from(end - 1), permission);
-        0
+        inner.tasks[current].memory_set.insert_framed_area(start_va, VirtAddr::from(end), permission)
     }
 
     /// 释放内存

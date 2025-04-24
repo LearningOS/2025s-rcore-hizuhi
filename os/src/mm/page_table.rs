@@ -139,10 +139,19 @@ impl PageTable {
     }
     /// set the map between virtual page number and physical page number
     #[allow(unused)]
-    pub fn map(&mut self, vpn: VirtPageNum, ppn: PhysPageNum, flags: PTEFlags) {
-        let pte = self.find_pte_create(vpn).unwrap();
-        assert!(!pte.is_valid(), "vpn {:?} is mapped before mapping", vpn);
-        *pte = PageTableEntry::new(ppn, flags | PTEFlags::V);
+    pub fn map(&mut self, vpn: VirtPageNum, ppn: PhysPageNum, flags: PTEFlags) -> isize {
+        match self.find_pte_create(vpn) {
+            Some(pte) => {
+                if pte.is_valid() { // 如果页表项已经存在，直接返回错误
+                    return -1;
+                }
+                *pte = PageTableEntry::new(ppn, flags | PTEFlags::V);
+            }
+            None => {
+                return -1;
+            }
+        }
+        0
     }
     /// remove the map between virtual page number and physical page number
     #[allow(unused)]
