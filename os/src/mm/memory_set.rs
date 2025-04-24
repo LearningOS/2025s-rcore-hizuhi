@@ -64,25 +64,6 @@ impl MemorySet {
         )
     }
     
-    /// 检查内存是不是已经被分配了
-    pub fn check_conflicts(
-        &mut self,
-        start_va: VirtAddr,
-        end_va: VirtAddr,
-    ) -> isize {
-        let start_vpn = start_va.floor();
-        let end_vpn = end_va.ceil();
-        for vpn in start_vpn.0 .. end_vpn.0 {
-            match self.translate(vpn.into()) {
-                Some(_) => {
-                    return -1;
-                }
-                None => {}
-            }
-        }
-        0
-    }
-    
     /// 给定范围，释放内存
     pub fn remove_area(&mut self, start_va: VirtAddr, end_va: VirtAddr) -> isize {
         let start_vpn = start_va.floor();
