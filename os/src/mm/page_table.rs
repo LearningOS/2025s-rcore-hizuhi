@@ -183,7 +183,8 @@ pub fn translated_byte_buffer(token: usize, ptr: *const u8, len: usize) -> Vec<&
     v
 }
 
-/// Translate&Copy a ptr[u8] array end with `\0` to a `String` Vec through page table
+/// Translate&Copy a ptr[u8] array end with `\0` to a `String` Vec through page tablecurrent_user_token
+/// 获取在用户空间上的字符串
 pub fn translated_str(token: usize, ptr: *const u8) -> String {
     let page_table = PageTable::from_token(token);
     let mut string = String::new();

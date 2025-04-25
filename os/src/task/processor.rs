@@ -37,7 +37,7 @@ impl Processor {
 
     ///Get current task in moving semanteme
     pub fn take_current(&mut self) -> Option<Arc<TaskControlBlock>> {
-        self.current.take()
+        self.current.take() // 获取当前正在运行的任务, 并将其从处理器中移除
     }
 
     ///Get current task in cloning semanteme
@@ -52,6 +52,7 @@ lazy_static! {
 
 ///The main part of process execution and scheduling
 ///Loop `fetch_task` to get the process that needs to run, and switch the process through `__switch`
+/// 当系统没有其他任务时，就会在这个循环中运行
 pub fn run_tasks() {
     loop {
         let mut processor = PROCESSOR.exclusive_access();
@@ -106,6 +107,6 @@ pub fn schedule(switched_task_cx_ptr: *mut TaskContext) {
     let idle_task_cx_ptr = processor.get_idle_task_cx_ptr();
     drop(processor);
     unsafe {
-        __switch(switched_task_cx_ptr, idle_task_cx_ptr);
+        __switch(switched_task_cx_ptr, idle_task_cx_ptr); // 保存上下文到switched_task_cx_ptr, 并读取一个空闲的上下文
     }
 }

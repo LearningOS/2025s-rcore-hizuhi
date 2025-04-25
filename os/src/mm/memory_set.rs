@@ -60,7 +60,7 @@ impl MemorySet {
             None,
         );
     }
-    /// remove a area
+    /// remove a area，输入参数为启示VPN，找到Vec MapArea中对应起始的area移除
     pub fn remove_area_with_start_vpn(&mut self, start_vpn: VirtPageNum) {
         if let Some((idx, area)) = self
             .areas

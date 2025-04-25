@@ -63,7 +63,7 @@ pub fn exit_current_and_run_next(exit_code: i32) {
     let task = take_current_task().unwrap();
 
     let pid = task.getpid();
-    if pid == IDLE_PID {
+    if pid == IDLE_PID { // 如果IDLE进程退出，说明其他任务都执行完了
         println!(
             "[kernel] Idle process exit with exit_code {} ...",
             exit_code

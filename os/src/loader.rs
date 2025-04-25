@@ -40,7 +40,7 @@ lazy_static! {
             for _ in 0..num_app {
                 let mut end = start;
                 while end.read_volatile() != b'\0' {
-                    end = end.add(1);
+                    end = end.add(1); // 每次加1字节
                 }
                 let slice = core::slice::from_raw_parts(start, end as usize - start as usize);
                 let str = core::str::from_utf8(slice).unwrap();
