@@ -32,7 +32,7 @@
 
     1. L40：刚进入 __restore 时，sp 代表了什么值。请指出 __restore 的两种使用情景。
 
-    刚进入__restore时，sp值为内核栈顶的地址。
+    刚进入__restore时，sp值为内核栈底的地址。
     
     两种使用场景，主要是进入的方式不同： 1. 执行完trap_handler后返回，继续进入__restore处理。2. 在switch.S执行ret时跳转到__restore,因为ra为__restore的地址，
 
@@ -57,14 +57,14 @@
 
     4. L60：该指令之后，sp 和 sscratch 中的值分别有什么意义？
 
-        此时sscratch指向内核栈中TrapContext的底部, sp指向用户栈
+        此时sscratch指向内核栈中TrapContext的顶部, sp指向用户栈
 
     5. __restore：中发生状态切换在哪一条指令？为何该指令执行之后会进入用户态？
         sret，这一步会做一些设置，比如恢复SPP到M模式，主要是会将pc设置为mepc，后续会继续执行未完成的任务
 
     6. L13：该指令之后，sp 和 sscratch 中的值分别有什么意义？
 
-        此时sscratch指向用户栈, sp指向内核栈顶
+        此时sscratch指向用户栈, sp指向内核栈底
 
     7. 从 U 态进入 S 态是哪一条指令发生的？
 
