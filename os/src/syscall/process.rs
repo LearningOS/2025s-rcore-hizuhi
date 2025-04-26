@@ -3,12 +3,14 @@ use alloc::sync::Arc;
 
 use crate::{
     loader::get_app_data_by_name,
-    mm::{translated_refmut, translated_str},
+    mm::{translated_byte_buffer, translated_refmut, translated_str},
     task::{
         add_task, current_task, current_user_token, exit_current_and_run_next,
         suspend_current_and_run_next,
     },
+    timer::get_time_us,
 };
+
 
 #[repr(C)]
 #[derive(Debug)]
@@ -21,6 +23,7 @@ pub struct TimeVal {
 pub fn sys_exit(exit_code: i32) -> ! {
     trace!("kernel:pid[{}] sys_exit", current_task().unwrap().pid.0);
     exit_current_and_run_next(exit_code);
+
     panic!("Unreachable in sys_exit!");
 }
 
@@ -105,12 +108,41 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
 /// YOUR JOB: get time with second and microsecond
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
-pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
+pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
     trace!(
         "kernel:pid[{}] sys_get_time NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+
+    let user_satp = current_user_token();
+
+    let mut buffers = translated_byte_buffer(user_satp, ts as *mut u8, 16);
+    let us = get_time_us();
+    let time_val = TimeVal {
+        sec: us / 1_000_000,
+        usec: us % 1_000_000,
+    };
+    match buffers.len() {
+        0 => return -1,
+        1 => {
+            buffers[0][0..8].copy_from_slice(&time_val.sec.to_le_bytes());
+            buffers[0][8..16].copy_from_slice(&time_val.usec.to_le_bytes());
+        },
+        2 => {
+            let first_buffer_len = buffers[0].len();
+            if first_buffer_len >= 8 {
+                buffers[0][0..8].copy_from_slice(&time_val.sec.to_le_bytes());
+                buffers[0][8..first_buffer_len].copy_from_slice(&time_val.usec.to_le_bytes()[0..first_buffer_len-8]);
+                buffers[1][0..16-first_buffer_len].copy_from_slice(&time_val.usec.to_le_bytes()[first_buffer_len-8..]);
+            } else {
+                buffers[0][0..first_buffer_len].copy_from_slice(&time_val.sec.to_le_bytes()[0..first_buffer_len]);
+                buffers[1][0..8-first_buffer_len].copy_from_slice(&time_val.sec.to_le_bytes()[first_buffer_len..]);
+                buffers[1][8-first_buffer_len..16-first_buffer_len].copy_from_slice(&time_val.usec.to_le_bytes());
+            }
+        },
+        _ => return -1,
+    }
+    0
 }
 
 /// YOUR JOB: Implement mmap.
