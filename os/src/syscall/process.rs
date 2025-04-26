@@ -127,21 +127,46 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
 }
 
 /// YOUR JOB: Implement mmap.
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
+pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
     trace!(
-        "kernel:pid[{}] sys_mmap NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_mmap",
         current_task().unwrap().pid.0
     );
-    -1
+    if start % PAGE_SIZE != 0 || port & !0x07 != 0 || port & 0x07 == 0{
+        return -1;
+    }
+    let len = (len - 1 + PAGE_SIZE) / PAGE_SIZE * PAGE_SIZE; // 按页对齐（向上取整），如果len小于一个PAGE_SIZE，那么end比start刚好大一页，再经过floor和ceil，分别为start和start+1，其他情况也类似
+    let end = start + len;
+    let start_va: VirtAddr = VirtAddr::from(start);
+    let end_va: VirtAddr = VirtAddr::from(end);
+
+    let mut permission = MapPermission::U;
+    if (port & 0x1) != 0 { permission |= MapPermission::R; }
+    if (port & 0x2) != 0 { permission |= MapPermission::W; }
+    if (port & 0x4) != 0 { permission |= MapPermission::X; }
+
+    let current: Arc<crate::task::TaskControlBlock> = current_task().unwrap();
+    let current_tcb = &mut current.inner_exclusive_access();
+    debug!("mmap: start_va:{:#x}, end_va:{:#x}", start_va.0, end_va.0);
+    current_tcb.memory_set.insert_framed_area(start_va, end_va, permission)
 }
 
 /// YOUR JOB: Implement munmap.
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
+pub fn sys_munmap(start: usize, len: usize) -> isize {
     trace!(
-        "kernel:pid[{}] sys_munmap NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_munmap",
         current_task().unwrap().pid.0
     );
-    -1
+    if start % PAGE_SIZE != 0 {
+        return -1;
+    }
+    let start_va = VirtAddr::from(start);
+    let start_vpn = start_va.floor();
+    let len_vpn = (len - 1 + PAGE_SIZE) / PAGE_SIZE;
+    let current: Arc<crate::task::TaskControlBlock> = current_task().unwrap();
+    let current_tcb = &mut current.inner_exclusive_access();
+    debug!("munmap: start_vpn:{:#x}, len_vpn:{}", start_vpn.0, len_vpn);
+    current_tcb.memory_set.remove_area_with_start_vpn_and_len(start_vpn, len_vpn)
 }
 
 /// change data segment size
