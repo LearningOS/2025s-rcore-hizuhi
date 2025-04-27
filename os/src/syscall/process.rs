@@ -5,7 +5,7 @@ use crate::{
     config::PAGE_SIZE, loader::get_app_data_by_name, mm::{translated_byte_buffer, translated_refmut, translated_str, MapPermission, VirtAddr}, task::{
         add_task, current_task, current_user_token, exit_current_and_run_next,
         suspend_current_and_run_next,
-    }, timer::get_time_us
+    }, timer::get_time_us, task::TaskStatus
 };
 
 
@@ -45,7 +45,7 @@ pub fn sys_fork() -> isize {
     let trap_cx = new_task.inner_exclusive_access().get_trap_cx();
     // we do not have to move to next instruction since we have done it before
     // for child process, fork returns 0
-    trap_cx.x[10] = 0;
+    trap_cx.x[10] = 0; // 保存在x10，作为__restore的返回值
     // add new task to scheduler
     add_task(new_task);
     new_pid as isize
@@ -81,6 +81,19 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
         return -1;
         // ---- release current PCB
     }
+    
+    debug!("[kernel] pid[{}] children status:", task.pid.0);
+    for child in inner.children.iter() {
+        let child_inner = child.inner_exclusive_access();
+        let status = match child_inner.task_status {
+            TaskStatus::UnInit => "UnInit",
+            TaskStatus::Ready => "Ready",
+            TaskStatus::Running => "Running", 
+            TaskStatus::Zombie => "Zombie",
+        };
+        debug!("[kernel] \t Child pid[{}] status:{}", child.pid.0, status);
+    }
+
     let pair = inner.children.iter().enumerate().find(|(_, p)| {
         // ++++ temporarily access child PCB exclusively
         p.inner_exclusive_access().is_zombie() && (pid == -1 || pid as usize == p.getpid())
@@ -197,12 +210,27 @@ pub fn sys_sbrk(size: i32) -> isize {
 
 /// YOUR JOB: Implement spawn.
 /// HINT: fork + exec =/= spawn
-pub fn sys_spawn(_path: *const u8) -> isize {
+pub fn sys_spawn(path: *const u8) -> isize {
     trace!(
-        "kernel:pid[{}] sys_spawn NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_spawn",
         current_task().unwrap().pid.0
     );
-    -1
+
+    let current_task = current_task().unwrap();
+    let token = current_user_token();
+    let path = translated_str(token, path);
+
+    if let Some(data) = get_app_data_by_name(path.as_str()) {
+        let new_task = current_task.spawn(data);
+        let new_pid = new_task.pid.0;
+        let trap_cx = new_task.inner_exclusive_access().get_trap_cx();
+        trap_cx.x[10] = 0;
+        add_task(new_task);
+        debug!("have spawned a new process: pid[{}]", new_pid);
+        new_pid as isize
+    } else {
+        -1
+    }
 }
 
 // YOUR JOB: Set task priority.
