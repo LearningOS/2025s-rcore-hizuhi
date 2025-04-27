@@ -245,5 +245,5 @@ pub fn sys_set_priority(prio: isize) -> isize {
     let current: Arc<crate::task::TaskControlBlock> = current_task().unwrap();
     let current_tcb = &mut current.inner_exclusive_access();
     current_tcb.set_pass(prio as usize);
-    0
+    prio
 }
