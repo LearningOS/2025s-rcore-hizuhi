@@ -112,7 +112,7 @@ impl DiskInode {
         Self::_data_blocks(self.size)
     }
     fn _data_blocks(size: u32) -> u32 {
-        (size + BLOCK_SZ as u32 - 1) / BLOCK_SZ as u32
+        (size + BLOCK_SZ as u32 - 1) / BLOCK_SZ as u32 // 向上取整
     }
     /// Return number of blocks needed include indirect1/2.
     pub fn total_blocks(size: u32) -> u32 {
@@ -127,7 +127,7 @@ impl DiskInode {
             total += 1;
             // sub indirect1
             total +=
-                (data_blocks - INDIRECT1_BOUND + INODE_INDIRECT1_COUNT - 1) / INODE_INDIRECT1_COUNT;
+                (data_blocks - INDIRECT1_BOUND + INODE_INDIRECT1_COUNT - 1) / INODE_INDIRECT1_COUNT; // 减去inderect1上界，再向上取整
         }
         total as u32
     }
@@ -324,7 +324,7 @@ impl DiskInode {
         let mut read_size = 0usize;
         loop {
             // calculate end of current block
-            let mut end_current_block = (start / BLOCK_SZ + 1) * BLOCK_SZ;
+            let mut end_current_block = (start / BLOCK_SZ + 1) * BLOCK_SZ;  // 一次读取一个块
             end_current_block = end_current_block.min(end);
             // read and update read size
             let block_read_size = end_current_block - start;
@@ -335,7 +335,7 @@ impl DiskInode {
             )
             .lock()
             .read(0, |data_block: &DataBlock| {
-                let src = &data_block[start % BLOCK_SZ..start % BLOCK_SZ + block_read_size];
+                let src = &data_block[start % BLOCK_SZ..start % BLOCK_SZ + block_read_size];    // 从块内偏移开始读取
                 dst.copy_from_slice(src);
             });
             read_size += block_read_size;
@@ -375,7 +375,7 @@ impl DiskInode {
             .modify(0, |data_block: &mut DataBlock| {
                 let src = &buf[write_size..write_size + block_write_size];
                 let dst = &mut data_block[start % BLOCK_SZ..start % BLOCK_SZ + block_write_size];
-                dst.copy_from_slice(src);
+                dst.copy_from_slice(src);   // src和dst相反
             });
             write_size += block_write_size;
             // move to next block

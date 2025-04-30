@@ -14,7 +14,7 @@ pub struct Bitmap {
 fn decomposition(mut bit: usize) -> (usize, usize, usize) {
     let block_pos = bit / BLOCK_BITS;
     bit %= BLOCK_BITS;
-    (block_pos, bit / 64, bit % 64)
+    (block_pos, bit / 64, bit % 64) // 块编号，块内64个u64的编号，u64内的位编号
 }
 
 impl Bitmap {
@@ -28,7 +28,7 @@ impl Bitmap {
     /// Allocate a new block from a block device
     pub fn alloc(&self, block_device: &Arc<dyn BlockDevice>) -> Option<usize> {
         for block_id in 0..self.blocks {
-            let pos = get_block_cache(
+            let pos: Option<usize> = get_block_cache(
                 block_id + self.start_block_id as usize,
                 Arc::clone(block_device),
             )
