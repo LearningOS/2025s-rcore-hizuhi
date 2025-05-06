@@ -71,9 +71,6 @@ pub struct TaskControlBlockInner {
 
     /// Program break
     pub program_brk: usize,
-
-    /// Stride
-    pub stride: usize,
 }
 
 impl TaskControlBlockInner {
@@ -305,7 +302,6 @@ impl TaskControlBlock {
                         // 2 -> stderr
                         Some(Arc::new(Stdout)),
                     ],
-                    stride: 0,
                 })
             },
         });
