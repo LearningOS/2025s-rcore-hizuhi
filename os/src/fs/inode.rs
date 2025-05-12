@@ -6,8 +6,10 @@
 //! need to wrap `OSInodeInner` into `UPSafeCell`
 use super::File;
 use crate::drivers::BLOCK_DEVICE;
-use crate::mm::UserBuffer;
+use crate::mm::{translated_refmut, UserBuffer};
 use crate::sync::UPSafeCell;
+use crate::fs::{Stat, StatMode};
+use crate::task::current_user_token;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use bitflags::*;
@@ -120,9 +122,20 @@ pub fn open_file(name: &str, flags: OpenFlags) -> Option<Arc<OSInode>> {
             if flags.contains(OpenFlags::TRUNC) {
                 inode.clear();
             }
+            // log::debug!("found inode, start to read");
             Arc::new(OSInode::new(readable, writable, inode))
         })
     }
+}
+
+/// link a file by name
+pub fn linkat(old_name: &str, new_name: &str) -> isize {
+    ROOT_INODE.link(old_name, new_name)
+}
+
+/// unlink a file by name
+pub fn unlinkat(name: &str) -> isize {
+    ROOT_INODE.unlink(name)
 }
 
 impl File for OSInode {
@@ -155,5 +168,18 @@ impl File for OSInode {
             total_write_size += write_size;
         }
         total_write_size
+    }
+
+    fn stat(&self, stat: &mut Stat) {
+        debug!("stat inode");
+        let inner = self.inner.exclusive_access();
+        let token = current_user_token();
+        let (ino, is_dir, nlink) = inner.inode.stat_info();
+        drop(inner);
+        let stat = translated_refmut(token, stat);
+        stat.dev = 0;
+         stat.ino = ino as u64;
+        stat.mode = if is_dir {StatMode::DIR} else {StatMode::FILE};
+        stat.nlink = nlink as u32;
     }
 }

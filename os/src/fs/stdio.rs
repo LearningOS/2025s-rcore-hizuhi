@@ -1,8 +1,9 @@
 //!Stdin & Stdout
 use super::File;
-use crate::mm::UserBuffer;
+use crate::mm::{translated_refmut, UserBuffer};
 use crate::sbi::console_getchar;
-use crate::task::suspend_current_and_run_next;
+use crate::task::{current_user_token, suspend_current_and_run_next};
+use crate::fs::{Stat, StatMode};
 
 /// stdin file for getting chars from console
 pub struct Stdin;
@@ -39,6 +40,15 @@ impl File for Stdin {
     fn write(&self, _user_buf: UserBuffer) -> usize {
         panic!("Cannot write to stdin!");
     }
+    fn stat(&self, stat: &mut Stat) {
+        trace!("stat stdin");
+        let token = current_user_token();
+        let stat = translated_refmut(token, stat);
+        stat.dev = 0;
+        stat.ino = 0u64;
+        stat.mode = StatMode::NULL;
+        stat.nlink = 0;
+    }
 }
 
 impl File for Stdout {
@@ -56,5 +66,12 @@ impl File for Stdout {
             print!("{}", core::str::from_utf8(*buffer).unwrap());
         }
         user_buf.len()
+    }
+    fn stat(&self, stat: &mut Stat) {
+        debug!("stat stdout");
+        stat.dev = 0;
+        stat.ino = 0u64;
+        stat.mode = StatMode::NULL;
+        stat.nlink = 0;
     }
 }
